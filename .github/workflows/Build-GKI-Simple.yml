@@ -1,0 +1,48 @@
+name: Build GKI Simple
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential flex libssl-dev libelf-dev libncurses-dev dwarves zstd cpio axel
+
+      - name: Download GKI Kernel Source
+        run: |
+          mkdir -p kernel && cd kernel
+          axel -n 8 https://android.googlesource.com/kernel/common/+archive/refs/heads/android13-5.15.tar.gz
+          tar xzf android13-5.15.tar.gz
+          rm android13-5.15.tar.gz
+
+      - name: Add SukiSU Ultra
+        run: |
+          cd kernel
+          git clone https://github.com/SukiSU-Ultra/SukiSU_Ultra.git -b main --depth=1
+          cd SukiSU_Ultra
+          cp -r kernel/* ../
+
+      - name: Build Kernel
+        run: |
+          cd kernel
+          make ARCH=arm64 O=out gki_defconfig
+          make ARCH=arm64 O=out -j$(nproc) Image
+
+      - name: Package AnyKernel3
+        run: |
+          git clone https://github.com/osm0sis/AnyKernel3.git
+          cp kernel/out/arch/arm64/boot/Image AnyKernel3/Image
+          cd AnyKernel3
+          zip -r ../SukiSU-GKI-AnyKernel3.zip .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SukiSU-GKI-AnyKernel3
+          path: SukiSU-GKI-AnyKernel3.zip
